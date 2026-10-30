@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apuração Sem Biometria</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js"></script>
+<style>
+/* Layout: uma coluna de ferramenta — entrada de arquivos, progresso, totais por turno, tabela por UF */
+:root{
+  --bg:#f3f6f4; --surface:#ffffff; --ink:#15211c; --muted:#5b6b64; --line:#d5ded9;
+  --accent:#147a4f; --accent-ink:#ffffff; --accent-soft:#e1f1e8; --warn:#b5621a;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1613; --surface:#17211c; --ink:#e4ece8; --muted:#93a59c; --line:#2a3832;
+  --accent:#3fbf86; --accent-ink:#06130d; --accent-soft:#183a2a; --warn:#e39a55; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1613; --surface:#17211c; --ink:#e4ece8; --muted:#93a59c; --line:#2a3832;
+  --accent:#3fbf86; --accent-ink:#06130d; --accent-soft:#183a2a; --warn:#e39a55; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5}
+.wrap{max-width:880px;margin:0 auto;padding-block:28px 48px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:22px}
+h1{font-size:1.75rem;margin:0;letter-spacing:-.01em;text-wrap:balance}
+h2{font-size:1rem;margin:0;text-wrap:balance}
+p{margin:0;max-width:65ch}
+.lede{color:var(--muted)}
+.eyebrow{font-family:var(--mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.drop{border:2px dashed var(--line);border-radius:10px;background:var(--surface);padding:28px 20px;
+  display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;transition:border-color .15s,background .15s}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.btn{font:inherit;font-weight:600;border:0;border-radius:6px;padding:10px 18px;cursor:pointer;
+  background:var(--accent);color:var(--accent-ink)}
+.btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+.btn:focus-visible,.drop:focus-within{outline:3px solid var(--accent);outline-offset:2px}
+.btn[disabled]{opacity:.5;cursor:default}
+.small{font-size:.85rem;color:var(--muted)}
+.status{display:flex;flex-direction:column;gap:8px}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden}
+.bar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.err{color:var(--warn);font-weight:500}
+.totals{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.turno{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.turno .big{font-family:var(--mono);font-size:1.9rem;font-weight:600;font-variant-numeric:tabular-nums;color:var(--accent);line-height:1.15}
+.tag{display:inline-block;font-family:var(--mono);font-size:.7rem;padding:2px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);letter-spacing:.04em}
+.tag.ex{background:transparent;border:1px solid var(--warn);color:var(--warn)}
+.tablebox{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:.9rem}
+th,td{padding:8px 12px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
+th{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+td{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+.note{border-left:3px solid var(--line);padding-left:12px;color:var(--muted);font-size:.88rem}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header style="display:flex;flex-direction:column;gap:8px">
+    <span class="eyebrow">Eleições 2026 · Boletim de Urna</span>
+    <h1>Eleitores liberados sem biometria</h1>
+    <p class="lede">Selecione os arquivos <span class="mono">bweb_*.zip</span> (ou os CSVs extraídos) do Portal de Dados Abertos do TSE. A leitura acontece no seu navegador: o arquivo não é enviado para lugar nenhum, então não há limite de tamanho.</p>
+  </header>
+
+  <label class="drop" id="drop" for="arquivos">
+    <strong>Arraste os arquivos aqui</strong>
+    <span class="small">ZIP ou CSV, um ou vários estados de uma vez</span>
+    <span class="btn" role="button">Escolher arquivos</span>
+    <input id="arquivos" type="file" multiple accept=".zip,.csv" hidden>
+  </label>
+
+  <section class="status" id="status" hidden>
+    <div class="row"><span id="stTxt" class="small">Lendo…</span><span id="stPct" class="mono small">0%</span></div>
+    <div class="bar"><i id="stBar"></i></div>
+    <span id="stErr" class="err" hidden></span>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:12px">
+    <div class="row">
+      <h2>Total por turno</h2>
+      <span id="badge" class="tag ex">exemplo fictício</span>
+    </div>
+    <div class="totals" id="totals"></div>
+    <p class="small" id="colsInfo"></p>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:12px">
+    <div class="row">
+      <h2>Por UF</h2>
+      <button class="btn ghost" id="copiar" type="button">Copiar tabela</button>
+    </div>
+    <div class="tablebox"><table id="tab"></table></div>
+    <span id="copyMsg" class="small" hidden></span>
+  </section>
+
+  <p class="note">Cada seção aparece no CSV em várias linhas (uma por candidato e cargo). A soma usa um único valor por seção eleitoral. A coluna de liberação sem digital é identificada pelo nome (contém BIOM, NASC, LIB ou HABIL). Eleitores sem biometria cadastrada podem não estar incluídos, conforme o leiaute do TSE.</p>
+</div>
+
+<script>
+const fmt = n => n.toLocaleString("pt-BR");
+const pct = (a,b) => b ? (a/b*100).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})+"%" : "–";
+const CHAVE = ["NR_TURNO","SG_UF","CD_MUNICIPIO","NR_ZONA","NR_SECAO"];
+const isBio = c => /^QT_/.test(c) && /(BIOM|NASC|LIB|HABIL)/.test(c);
+
+let secoes = new Map();   // chave da seção -> {turno, uf, vals:{col:max}}
+let bioCols = new Set();
+let lastRows = [];
+
+// ---------- exemplo inicial (fictício) ----------
+renderExample();
+function renderExample(){
+  const ex = [
+    {turno:"2", uf:"AC", secoes:2034, comp:498210, bio:31877},
+    {turno:"2", uf:"DF", secoes:6611, comp:1802455, bio:98140},
+  ];
+  const col = "QT_ELEITORES_LIBERADOS_SEM_BIOMETRIA (ex.)";
+  const rows = ex.map(r=>({turno:r.turno, uf:r.uf, secoes:r.secoes, comp:r.comp, vals:{[col]:r.bio}}));
+  render(rows,[col],true);
+}
+
+// ---------- entrada ----------
+const input = document.getElementById("arquivos"), drop = document.getElementById("drop");
+input.addEventListener("change", e => processar([...e.target.files]));
+["dragenter","dragover"].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.add("over")}));
+["dragleave","drop"].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.remove("over")}));
+drop.addEventListener("drop", e => processar([...e.dataTransfer.files]));
+
+const $ = id => document.getElementById(id);
+function setStatus(txt, frac){ $("status").hidden=false; $("stTxt").textContent=txt;
+  if(frac!=null){ $("stPct").textContent=Math.floor(frac*100)+"%"; $("stBar").style.width=(frac*100)+"%"; } }
+function setErr(msg){ $("stErr").hidden=!msg; $("stErr").textContent=msg||""; }
+
+async function processar(files){
+  files = files.filter(f=>/\.(zip|csv)$/i.test(f.name));
+  if(!files.length){ setErr("Nenhum arquivo .zip ou .csv selecionado."); $("status").hidden=false; return; }
+  secoes = new Map(); bioCols = new Set(); setErr("");
+  const total = files.reduce((s,f)=>s+f.size,0); let feito = 0;
+  for(const f of files){
+    try{
+      await lerArquivo(f, lidos => setStatus(`Lendo ${f.name}`, (feito+lidos)/total));
+    }catch(err){ setErr(`Erro em ${f.name}: ${err.message}`); }
+    feito += f.size;
+  }
+  setStatus(`Concluído: ${files.length} arquivo(s), ${fmt(secoes.size)} seções`, 1);
+  agregar();
+}
+
+function novoParser(nomeArq){
+  const dec = new TextDecoder("windows-1252");
+  let resto = "", idx = null, colsBio = [], iComp = -1;
+  function linha(l){
+    if(l.endsWith("\r")) l = l.slice(0,-1);
+    if(!l) return;
+    const f = l.split(";");
+    for(let i=0;i<f.length;i++){ const s=f[i]; if(s.charCodeAt(0)===34) f[i]=s.slice(1,-1); }
+    if(!idx){
+      idx = {}; f.forEach((c,i)=>idx[c.trim().toUpperCase()]=i);
+      const falta = CHAVE.filter(c=>!(c in idx));
+      if(falta.length) throw new Error(`colunas ausentes (${falta.join(", ")}) em ${nomeArq}`);
+      colsBio = Object.keys(idx).filter(isBio);
+      if(!colsBio.length) throw new Error(`nenhuma coluna de biometria em ${nomeArq}. Colunas: ${Object.keys(idx).join(", ")}`);
+      colsBio.forEach(c=>bioCols.add(c));
+      iComp = idx["QT_COMPARECIMENTO"] ?? -1;
+      return;
+    }
+    const k = CHAVE.map(c=>f[idx[c]]).join("|");
+    let s = secoes.get(k);
+    if(!s){ s = {turno:f[idx.NR_TURNO], uf:f[idx.SG_UF], comp:0, vals:{}}; secoes.set(k,s); }
+    for(const c of colsBio){ const v = parseInt(f[idx[c]],10); if(v>0 && !(s.vals[c]>=v)) s.vals[c]=v; }
+    if(iComp>=0){ const v=parseInt(f[iComp],10); if(v>s.comp) s.comp=v; }
+  }
+  return (chunk, final) => {
+    resto += dec.decode(chunk, {stream:!final});
+    const partes = resto.split("\n"); resto = partes.pop();
+    for(const p of partes) linha(p);
+    if(final && resto){ linha(resto); resto=""; }
+  };
+}
+
+async function lerArquivo(file, onProg){
+  const reader = file.stream().getReader(); let lidos = 0;
+  const zip = /\.zip$/i.test(file.name);
+  let unzip, erro = null, feed;
+  if(zip){
+    unzip = new fflate.Unzip(); unzip.register(fflate.UnzipInflate);
+    unzip.onfile = ent => {
+      if(!/\.csv$/i.test(ent.name)) return;
+      const p = novoParser(ent.name);
+      ent.ondata = (err, d, final) => { if(err){erro=err;return;} try{ p(d, final); }catch(e){ erro=e; } };
+      ent.start();
+    };
+  } else feed = novoParser(file.name);
+  let t = 0;
+  while(true){
+    const {done, value} = await reader.read();
+    if(done) break;
+    lidos += value.length;
+    if(zip) unzip.push(value, false); else feed(value, false);
+    if(erro) throw erro;
+    const now = performance.now(); if(now-t>120){ onProg(lidos); t=now; await new Promise(r=>setTimeout(r,0)); }
+  }
+  if(zip) unzip.push(new Uint8Array(0), true); else feed(new Uint8Array(0), true);
+  if(erro) throw erro;
+  onProg(lidos);
+}
+
+function agregar(){
+  const cols = [...bioCols];
+  const g = new Map();
+  for(const s of secoes.values()){
+    const k = s.turno+"|"+s.uf;
+    let r = g.get(k); if(!r){ r={turno:s.turno, uf:s.uf, secoes:0, comp:0, vals:{}}; cols.forEach(c=>r.vals[c]=0); g.set(k,r); }
+    r.secoes++; r.comp += s.comp; for(const c of cols) r.vals[c] += (s.vals[c]||0);
+  }
+  const rows = [...g.values()].sort((a,b)=>a.turno.localeCompare(b.turno)||a.uf.localeCompare(b.uf));
+  render(rows, cols, false);
+}
+
+function render(rows, cols, exemplo){
+  lastRows = {rows, cols};
+  $("badge").className = exemplo ? "tag ex" : "tag";
+  $("badge").textContent = exemplo ? "exemplo fictício" : "dados dos seus arquivos";
+  const porTurno = {};
+  rows.forEach(r=>{ const t = porTurno[r.turno] ??= {secoes:0, comp:0, vals:{}};
+    t.secoes+=r.secoes; t.comp+=r.comp; cols.forEach(c=>t.vals[c]=(t.vals[c]||0)+r.vals[c]); });
+  const principal = cols[0];
+  $("totals").innerHTML = Object.entries(porTurno).map(([t,v])=>`
+    <div class="turno">
+      <span class="eyebrow">${t}º turno</span>
+      <span class="big">${fmt(v.vals[principal]||0)}</span>
+      <span class="small">${pct(v.vals[principal]||0, v.comp)} do comparecimento · ${fmt(v.secoes)} seções · ${fmt(v.comp)} votantes</span>
+      ${cols.slice(1).map(c=>`<span class="small mono">${c}: ${fmt(v.vals[c]||0)}</span>`).join("")}
+    </div>`).join("") || `<p class="small">Nenhuma seção encontrada.</p>`;
+  $("colsInfo").textContent = exemplo ? "Abra seus arquivos para substituir este exemplo." : `Coluna(s) somada(s): ${cols.join(", ")}`;
+  $("tab").innerHTML = `<thead><tr><th>Turno</th><th>UF</th><th>Seções</th><th>Comparecimento</th>${cols.map(c=>`<th>${c}</th><th>%</th>`).join("")}</tr></thead>
+    <tbody>${rows.map(r=>`<tr><td>${r.turno}º</td><td>${r.uf}</td><td>${fmt(r.secoes)}</td><td>${fmt(r.comp)}</td>${cols.map(c=>`<td>${fmt(r.vals[c])}</td><td>${pct(r.vals[c],r.comp)}</td>`).join("")}</tr>`).join("")}</tbody>`;
+}
+
+$("copiar").addEventListener("click", async () => {
+  const {rows, cols} = lastRows;
+  const tsv = [["Turno","UF","Secoes","Comparecimento",...cols].join("\t"),
+    ...rows.map(r=>[r.turno,r.uf,r.secoes,r.comp,...cols.map(c=>r.vals[c])].join("\t"))].join("\n");
+  const msg = $("copyMsg"); msg.hidden=false;
+  try{ await navigator.clipboard.writeText(tsv); msg.textContent="Tabela copiada. Cole no Excel ou no Google Planilhas."; }
+  catch{ const sel=window.getSelection(), rg=document.createRange(); rg.selectNodeContents($("tab")); sel.removeAllRanges(); sel.addRange(rg);
+    msg.textContent="Tabela selecionada. Use Ctrl+C para copiar."; }
+});
+</script>
+</body>
+</html>
